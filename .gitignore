@@ -9,6 +9,7 @@ test_result
 *.sh
 sbatch*
 *.ipynb
+*.view
 
 # data
 pretrain/glove
