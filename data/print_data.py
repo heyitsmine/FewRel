@@ -30,9 +30,14 @@ def format_sample(sample):
      
     sentence = ''
     sz = len(sample['tokens'])
+    
     for i in range(sz):
-        sentence += sample['tokens'][i]
-        if i + 1 < sz and sample['tokens'][i + 1] not in string.punctuation:
+        cur = sample['tokens'][i]
+        nxt = None
+        if i + 1 < sz:
+            nxt = sample['tokens'][i + 1]
+        sentence += cur
+        if nxt is not None and nxt not in string.punctuation and cur not in '([-':
             sentence += ' '
     
     return sentence
