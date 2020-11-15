@@ -10,7 +10,7 @@ from transformers import BertTokenizer, BertModel, BertForMaskedLM, BertForSeque
 
 class CNNSentenceEncoder(nn.Module):
 
-    def __init__(self, word_vec_mat, word2id, max_length, word_embedding_dim=50, 
+    def __init__(self, word_vec_mat, word2id, max_length, word_embedding_dim=50,
             pos_embedding_dim=5, hidden_size=230):
         nn.Module.__init__(self)
         self.hidden_size = hidden_size
@@ -22,11 +22,52 @@ class CNNSentenceEncoder(nn.Module):
         self.word2id = word2id
 
     def forward(self, inputs):
+        """
+        1.input
+        dict{'word': tensor[batch_size * N * K, maxlen],
+             'pos1': tensor[batch_size * N * K, maxlen],
+             'pos2': tensor[batch_size * N * K, maxlen],
+             'mask': tensor[batch_size * N * K, maxlen]}
+
+        2. embedding
+        tensor[batch_size * N * K, maxlen, word_embedding_dim + pos_embedding_dim * 2]
+
+        3. encoder
+          3.1 transpose(1, 2)
+          tensor[batch_size * N * K, word_embedding_dim + pos_embedding_dim * 2, maxlen]
+          3.2 Conv1d(embedding_dim, hidden_size, 3, padding=1)
+          tensor[batch_size * N * K, hidden_size, maxlen]
+          3.3 MaxPool1d(max_length) -> squeeze(2)
+          tensor[batch_size * N * K, hidden_size]
+        """
         x = self.embedding(inputs)
         x = self.encoder(x)
         return x
 
     def tokenize(self, raw_tokens, pos_head, pos_tail):
+        """
+        将token转化为词表中的索引，同时得到句子相对head, tail entity的相对编码
+
+        Parameters
+        ----------
+        raw_tokens: list[str]
+            一个句子
+        pos_head: list[int]
+            head entity中每个token的位置
+        pos_tail: list[int]
+            tail entity中每个token的位置
+
+        Returns
+        ----------
+        indexed_tokens: list[int], 长度为max_length
+            转化为索引后的token, 超过max_length部分截断, 不足max_length则补'[PAD]'
+        pos1: list[int], 长度为max_length
+            每个token与head token的距离 + max_length
+        pos2: list[int], 长度为max_length
+            每个token与tail token的距离 + max_length
+        mask: list[int], 长度为max_length
+            全部为1, 暂不使用
+        """
         # token -> index
         indexed_tokens = []
         for token in raw_tokens:
@@ -52,6 +93,8 @@ class CNNSentenceEncoder(nn.Module):
 
         # mask
         mask = np.zeros((self.max_length), dtype=np.int32)
+        # TODO: 修正mask bug
+        # mask[:len(raw_tokens)] = 1
         mask[:len(indexed_tokens)] = 1
 
         return indexed_tokens, pos1, pos2, mask

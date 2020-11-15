@@ -24,18 +24,69 @@ class FewRelDataset(data.Dataset):
         self.encoder = encoder
 
     def __getraw__(self, item):
+        """
+        处理FewRel的单个句子
+
+        Parameters
+        ----------
+        item: dict{'tokens': list[str], 'h': [str, str, list[list[int]]], 't': [str, str, list[list[int]]]}
+            FewRel数据集中的单个句子
+
+        Returns
+        ----------
+        word: list[int]
+            token在词表中的索引
+        pos1: list[int]
+            head entity的位置编码
+        pos2: list[int]
+            tail entity的位置编码
+        mask: list[int]
+            0/1 mask
+        """
         word, pos1, pos2, mask = self.encoder.tokenize(item['tokens'],
             item['h'][2][0],
             item['t'][2][0])
         return word, pos1, pos2, mask 
 
     def __additem__(self, d, word, pos1, pos2, mask):
+        """
+        将word, pos1, pos2, mask加入d
+        """
         d['word'].append(word)
         d['pos1'].append(pos1)
         d['pos2'].append(pos2)
         d['mask'].append(mask)
 
     def __getitem__(self, index):
+        """
+        随机选取句子构造N-way, K-shot的(support_set, query_set, query_label)
+        构造过程为：
+        1.从所有类别中随机选取N个类别
+        2. 对每个类别，选取K + Q个句子
+          对每个句子：
+            2.1 word, pos1, pos2, mask = self.__getraw__(self.json_data[class_name][j])
+            2.2 将word, pos1, pos2, mask转为torch.tensor
+            2.3 self.__additem__, 前K个句子放入support_set，后Q个句子放入query_set
+          query_label += [i] * self.Q
+
+        Parameters
+        ----------
+        index: 未使用
+            每次随机选取使用的句子，不需要index
+
+        Returns
+        ----------
+        tuple(support_set, query_set, query_label)
+
+        support_set: dict{'word': list[], 'pos1': list[], 'pos2': list[], 'mask': list[] }
+        query_set: dict{'word': list[], 'pos1': list[], 'pos2': list[], 'mask': list[] }
+
+        'word', 'pos1', 'pos2', 'mask'的list中都含有N * K个元素,
+        每个元素都是torch.tensor, shape = [max_length], dtype=torch.int64, 其label与query_label对应
+
+        query_label: list[int]
+        [0, 0, ..., 0, 1, 1, ..., 1, 2, 2, ..., 2, ..., N - 1, N - 1, ..., N - 1]
+        """
         target_classes = random.sample(self.classes, self.N)
         support_set = {'word': [], 'pos1': [], 'pos2': [], 'mask': [] }
         query_set = {'word': [], 'pos1': [], 'pos2': [], 'mask': [] }
@@ -85,10 +136,26 @@ class FewRelDataset(data.Dataset):
         return 1000000000
 
 def collate_fn(data):
+    """
+    Parameters
+    ----------
+    data: list[tuple(support_set, query_set, query_label)]
+
+    Returns
+    ----------
+    tuple(batch_support, batch_query, batch_label)
+
+    batch_support, batch_query: dict{'word': tensor, 'pos1': tensor, 'pos2': tensor, 'mask': tensor}
+
+    torch.Size([batch_size * N * K, maxlen])
+    batch_label: torch.Size([batch_size * N * K])
+    """
     batch_support = {'word': [], 'pos1': [], 'pos2': [], 'mask': []}
     batch_query = {'word': [], 'pos1': [], 'pos2': [], 'mask': []}
     batch_label = []
     support_sets, query_sets, query_labels = zip(*data)
+    # support_sets: tuple(support_set, support_set, ..., support_set), size - batch_size
+
     for i in range(len(support_sets)):
         for k in support_sets[i]:
             batch_support[k] += support_sets[i][k]
@@ -161,8 +228,8 @@ class FewRelDatasetPair(data.Dataset):
                     self.K + self.Q, False)
             count = 0
             for j in indices:
-                word  = self.__getraw__(
-                        self.json_data[class_name][j])
+                word = self.__getraw__(
+                    self.json_data[class_name][j])
                 if count < self.K:
                     support.append(word)
                 else:

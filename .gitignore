@@ -10,6 +10,7 @@ test_result
 sbatch*
 *.ipynb
 *.view
+*.csv
 
 # data
 pretrain/glove

@@ -5,7 +5,11 @@ from torch.autograd import Variable
 import math
 from torch import optim
 
+
 class Encoder(nn.Module):
+    """
+    用在Embedding之后的Encoder
+    """
     def __init__(self, max_length, word_embedding_dim=50, pos_embedding_dim=5, hidden_size=230):
         nn.Module.__init__(self)
 
