@@ -89,6 +89,8 @@ def main():
     # only for prototypical networks
     parser.add_argument('--dot', action='store_true', 
            help='use dot instead of L2 distance for proto')
+    parser.add_argument('--attention', action='store_true', 
+           help='use attention instead of mean')
 
     # only for mtb
     parser.add_argument('--no_dropout', action='store_true',
@@ -191,13 +193,15 @@ def main():
         prefix += '-na{}'.format(opt.na_rate)
     if opt.dot:
         prefix += '-dot'
+    if opt.attention:
+        prefix += '-attention'
     if opt.cat_entity_rep:
         prefix += '-catentity'
     if len(opt.ckpt_name) > 0:
         prefix += '-' + opt.ckpt_name
     
     if model_name == 'proto':
-        model = Proto(sentence_encoder, dot=opt.dot)
+        model = Proto(sentence_encoder, dropout=opt.dropout, use_attention = opt.attention, dot=opt.dot)
     elif model_name == 'gnn':
         model = GNN(sentence_encoder, N, hidden_size=opt.hidden_size)
     elif model_name == 'snail':
