@@ -1,6 +1,7 @@
 import os
 import sklearn.metrics
 import numpy as np
+import pandas as pd
 import sys
 import time
 from . import sentence_encoder
@@ -138,7 +139,9 @@ class FewShotREFramework:
         test_iter: Num of iterations of testing
         '''
         print("Start training...")
-    
+        print("learning_rate: ", learning_rate)
+        acc_list = []
+
         # Init
         if bert_optim:
             print('Use bert optim!')
@@ -212,7 +215,6 @@ class FewShotREFramework:
                     for k in query:
                         query[k] = query[k].cuda()
                     label = label.cuda()
-
                 logits, pred = model(support, query, 
                         N_for_train, K, Q * N_for_train + na_rate * Q)
             loss = model.loss(logits, label) / float(grad_iter)
@@ -279,6 +281,7 @@ class FewShotREFramework:
             if (it + 1) % val_step == 0:
                 acc = self.eval(model, B, N_for_eval, K, Q, val_iter, 
                         na_rate=na_rate, pair=pair)
+                acc_list.append(acc)
                 model.train()
                 if acc > best_acc:
                     print('Best checkpoint')
@@ -289,7 +292,8 @@ class FewShotREFramework:
                 iter_right = 0.
                 iter_right_dis = 0.
                 iter_sample = 0.
-                
+        acc_df = pd.DataFrame(acc_list)
+        acc_df.to_csv(model_name+'.csv', index=False)
         print("\n####################\n")
         print("Finish training " + model_name)
 
