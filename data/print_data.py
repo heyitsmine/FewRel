@@ -80,4 +80,3 @@ if __name__ == '__main__':
     class_id = 'P463'
     view_filename = os.path.join('data', class_id + '.view')
     write_class(train_data, class_id, view_filename, pid2name)
-    
