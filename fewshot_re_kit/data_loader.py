@@ -368,4 +368,77 @@ def get_loader_unsupervised(name, encoder, N, K, Q, batch_size,
             collate_fn=collate_fn)
     return iter(data_loader)
 
+class TestSet(FewRelDataset):
+    """
+    从sample_io.py生成的json文件构建N-way, k-shot测试集
+    每个N-way, k-shot任务中的查询集有1个样本
+    """
+    def __init__(self, name, encoder, root):
+        """
+        name: str, 数据集名_种子
+        """
+        self.root = root
+        data_path = os.path.join(root, name + "_input.json")
+        label_path = os.path.join(root, name + "_output.json")
+        if not os.path.exists(data_path):
+            print("[ERROR] Data file '%s' does not exist!" % data_path)
+            assert(0)
+        if not os.path.exists(label_path):
+            print("[ERROR] Data file '%s' does not exist!" % data_path)
+            assert(0)
+        self.json_data = json.load(open(data_path))
+        self.json_label = json.load(open(label_path))
+        self.N = len(self.json_data[0]['meta_train'])
+        self.K = len(self.json_data[0]['meta_train'][0])
+        self.total_Q = 1
+        self.encoder = encoder
 
+    def __getitem__(self, index):
+        """
+        构造N-way, K-shot的(support_set, query_set, query_label)
+        Parameters
+        ----------
+        index: int
+            选取json文件中下标为index的任务
+
+        Returns
+        ----------
+        tuple(support_set, query_set, query_label)
+            support_set: dict{'word': list[], 'pos1': list[], 'pos2': list[], 'mask': list[] }
+            query_set: dict{'word': list[], 'pos1': list[], 'pos2': list[], 'mask': list[] }
+            query_label: list[int]
+        """
+        support_set = {'word': [], 'pos1': [], 'pos2': [], 'mask': []}
+        query_set = {'word': [], 'pos1': [], 'pos2': [], 'mask': []}
+        query_label = []
+        for i in range(self.N):
+            for j in range(self.K):
+                word, pos1, pos2, mask = self.__getraw__(self.json_data[index]['meta_train'][i][j])
+                word = torch.tensor(word).long()
+                pos1 = torch.tensor(pos1).long()
+                pos2 = torch.tensor(pos2).long()
+                mask = torch.tensor(mask).long()
+                self.__additem__(support_set, word, pos1, pos2, mask)
+
+        word, pos1, pos2, mask = self.__getraw__(self.json_data[index]['meta_test'])
+        word = torch.tensor(word).long()
+        pos1 = torch.tensor(pos1).long()
+        pos2 = torch.tensor(pos2).long()
+        mask = torch.tensor(mask).long()
+        self.__additem__(query_set, word, pos1, pos2, mask)
+        query_label.append(self.json_label[index])
+        return support_set, query_set, query_label
+
+    def __len__(self):
+        return len(self.json_data)
+
+def get_test_loader(name, encoder, batch_size,
+        num_workers=8, collate_fn=collate_fn, root='./evaluate'):
+    dataset = TestSet(name, encoder, root)
+    data_loader = data.DataLoader(dataset=dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            pin_memory=True,
+            num_workers=num_workers,
+            collate_fn=collate_fn)
+    return iter(data_loader)
